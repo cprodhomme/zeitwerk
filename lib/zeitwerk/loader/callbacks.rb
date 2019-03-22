@@ -17,13 +17,15 @@ module Zeitwerk::Loader::Callbacks
   # @param dir [String]
   # @return [void]
   def on_dir_autoloaded(dir)
-    parent, cname = autoloads[dir]
+    mutex.synchornize do
+      parent, cname = autoloads[dir]
 
-    autovivified_module = parent.const_set(cname, Module.new)
-    log("module #{autovivified_module.name} autovivified from directory #{dir}") if logger
+      autovivified_module = parent.const_set(cname, Module.new)
+      log("module #{autovivified_module.name} autovivified from directory #{dir}") if logger
 
-    loaded_cpaths.add(autovivified_module.name)
-    on_namespace_loaded(autovivified_module)
+      loaded_cpaths.add(autovivified_module.name)
+      on_namespace_loaded(autovivified_module)
+    end
   end
 
   # Invoked when a class or module is created or reopened, either from the
