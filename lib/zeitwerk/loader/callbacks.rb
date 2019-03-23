@@ -17,8 +17,9 @@ module Zeitwerk::Loader::Callbacks
   # @param dir [String]
   # @return [void]
   def on_dir_autoloaded(dir)
-    mutex.synchornize do
+    lock.synchronize do
       parent, cname = autoloads[dir]
+      break if loaded_cpaths.include?(cpath(parent, cname))
 
       autovivified_module = parent.const_set(cname, Module.new)
       log("module #{autovivified_module.name} autovivified from directory #{dir}") if logger

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "set"
+require "monitor"
 require "securerandom"
 
 module Zeitwerk
@@ -110,8 +111,8 @@ module Zeitwerk
     attr_reader :eager_load_exclusions
 
     # @private
-    # @return [Mutex]
-    attr_reader :mutex
+    # @return [Monitor]
+    attr_reader :lock
 
     def initialize
       @initialized_at = Time.now
@@ -130,7 +131,7 @@ module Zeitwerk
       @shadowed_files        = {}
       @eager_load_exclusions = Set.new
 
-      @mutex        = Mutex.new
+      @lock         = Monitor.new
       @setup        = false
       @eager_loaded = false
 
@@ -171,7 +172,7 @@ module Zeitwerk
     # @param paths [<String, Pathname, <String, Pathname>>]
     # @return [void]
     def preload(*paths)
-      mutex.synchronize do
+      lock.synchronize do
         expand_paths(paths).each do |abspath|
           preloads << abspath
           do_preload_abspath(abspath) if @setup
@@ -184,7 +185,7 @@ module Zeitwerk
     # @param paths [<String, Pathname, <String, Pathname>>]
     # @return [void]
     def ignore(*paths)
-      mutex.synchronize { ignored.merge(expand_paths(paths)) }
+      lock.synchronize { ignored.merge(expand_paths(paths)) }
     end
 
     # @private
@@ -199,7 +200,7 @@ module Zeitwerk
     #
     # @return [void]
     def setup
-      mutex.synchronize do
+      lock.synchronize do
         break if @setup
 
         expand_ignored_glob_patterns
@@ -220,7 +221,7 @@ module Zeitwerk
     # @private
     # @return [void]
     def unload
-      mutex.synchronize do
+      lock.synchronize do
         autoloads.each do |path, (parent, cname)|
           if parent.autoload?(cname)
             parent.send(:remove_const, cname)
@@ -267,7 +268,7 @@ module Zeitwerk
     #
     # @return [void]
     def eager_load
-      mutex.synchronize do
+      lock.synchronize do
         break if @eager_loaded
 
         queue = non_ignored_root_dirs.reject { |dir| eager_load_exclusions.member?(dir) }
@@ -293,7 +294,7 @@ module Zeitwerk
     # @param paths [<String, Pathname, <String, Pathname>>]
     # @return [void]
     def do_not_eager_load(*paths)
-      mutex.synchronize { eager_load_exclusions.merge(expand_paths(paths)) }
+      lock.synchronize { eager_load_exclusions.merge(expand_paths(paths)) }
     end
 
     # Says if the given constant path has been loaded.
